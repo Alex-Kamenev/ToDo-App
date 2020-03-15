@@ -36,7 +36,6 @@ app.get("/work", (req, res) => {
 });
 
 app.post("/", (req, res) => {
-
   const newItem = req.body.newItem;
 
   if (req.body.list === "Work") {
