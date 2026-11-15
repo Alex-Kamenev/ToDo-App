@@ -1,0 +1,21 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { createApp } = require('../app');
+test('validates tasks, keeps lists separate, and escapes HTML', async t => {
+  const server = createApp().listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = body => fetch(base, { method: 'POST', body: new URLSearchParams(body), redirect: 'manual' });
+  assert.equal((await post({ newItem: '   ' })).status, 400);
+  assert.equal((await post({ newItem: 'a'.repeat(501) })).status, 400);
+  assert.equal((await post({ 'newItem[nested]': 'bad' })).status, 400);
+  const added = await post({ newItem: '<script>alert(1)</script>', list: 'Work' });
+  assert.equal(added.status, 303);
+  assert.equal(added.headers.get('location'), '/work');
+  const work = await (await fetch(base + '/work')).text();
+  assert.match(work, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(work, /<script>alert/);
+  const daily = await (await fetch(base)).text();
+  assert.doesNotMatch(daily, /alert\(1\)/);
+});

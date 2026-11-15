@@ -1,52 +1,33 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-//local module request
-const date = require(__dirname + '/date.js');
+const path = require('node:path');
+const date = require('./date');
 
-const app = express();
-
-const items = ["Buy Food", "Cook Food", "Eat Food"];
-const workItems = [];
-
-app.set('view engine', 'ejs');
-
-app.use(bodyParser.urlencoded({
-  extended: true
-}));
-
-app.use(express.static(__dirname + "/public"));
-
-
-app.get("/", function(req, res) {
-
-  const day = date.getDate();
-
-  res.render('list', {
-    listTitle: day,
-    newListItems: items,
+function createApp() {
+  const app = express();
+  const items = ['Buy Food', 'Cook Food', 'Eat Food'];
+  const workItems = [];
+  app.disable('x-powered-by');
+  app.set('view engine', 'ejs');
+  app.set('views', path.join(__dirname, 'views'));
+  app.use(express.urlencoded({ extended: false, limit: '8kb' }));
+  app.use(express.static(path.join(__dirname, 'public')));
+  app.get('/', (req, res) => res.render('list', { listTitle: date.getDate(), newListItems: items }));
+  app.get('/work', (req, res) => res.render('list', { listTitle: 'Work', newListItems: workItems }));
+  app.post('/', (req, res) => {
+    const work = req.body.list === 'Work';
+    const destination = work ? '/work' : '/';
+    if (typeof req.body.newItem !== 'string') return res.status(400).send('A task is required.');
+    const newItem = req.body.newItem.trim();
+    if (!newItem || newItem.length > 500) return res.status(400).send('Enter a task between 1 and 500 characters.');
+    const list = work ? workItems : items;
+    if (list.length >= 1000) return res.status(400).send('This demo list is full. Restart to reset it.');
+    list.push(newItem);
+    return res.redirect(303, destination);
   });
-
-});
-
-app.get("/work", (req, res) => {
-  res.render("list", {
-    listTitle: "Work",
-    newListItems: workItems,
-  });
-});
-
-app.post("/", (req, res) => {
-  const newItem = req.body.newItem;
-
-  if (req.body.list === "Work") {
-    workItems.push(newItem);
-    res.redirect("/work");
-  } else {
-    items.push(newItem);
-    res.redirect("/");
-  }
-});
-
-app.listen(3000, function() {
-  console.log("Server started on port 3000");
-});
+  return app;
+}
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+  createApp().listen(port, process.env.HOST || '127.0.0.1', () => console.log(`To-do demo started on port ${port}`));
+}
+module.exports = { createApp };
